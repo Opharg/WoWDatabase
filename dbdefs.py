@@ -145,9 +145,10 @@ def read_definition_file(definition_file_path) -> dict:
 
     return definition_dict
 
+
 @cachier(cache_dir='./.cache', separate_files=True)
 def get_definitions_by_build(path, build):
-    print('test')
+    print(f'getting definitions for build {build}')
     definitions = read_definitions_folder(path)
     definitions_with_build = {}
 
@@ -156,11 +157,12 @@ def get_definitions_by_build(path, build):
         if 'builds' not in definitions[dbd]:  # some definitions are empty
             continue
         try:
+            flag = False
             for block in definitions[dbd]['builds']:  # block/layout from .dbd
 
                 # break when build has been found and definition added to definitions_with_build
-                flag = False
                 if flag:
+                    flag = False
                     break
 
                 for build_id in block['build']:
@@ -201,7 +203,5 @@ def get_definitions_by_build(path, build):
 
         except Exception as e:
             print(f'Exception "{e}" in {dbd}')
-
-    # print(definitions_with_build)
 
     return definitions_with_build
