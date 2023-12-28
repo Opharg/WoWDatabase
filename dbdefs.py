@@ -41,7 +41,7 @@ def read_definition_file(definition_file_path) -> dict:
         text = text.split('\n\n')  # blocks are always separated by a double linebreak
 
     # regex compiles
-    foreign_pattern = re.compile(r'<[A-Za-z_]+::[A-Za-z_]+>')
+    foreign_pattern = re.compile(r'<[A-Za-z_\d]+::[A-Za-z_\d]+>')
     data_size_pattern = re.compile(r'<u?[0-9]+>')
     array_size_pattern = re.compile(r'\[\d+]')
     annotations_pattern = re.compile(r'\$[A-Za-z,]+\$')
