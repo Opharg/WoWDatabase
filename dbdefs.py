@@ -181,6 +181,8 @@ def get_definitions_by_build(path, build):
                                 column_dict['name'] = column['name']
                             if 'data_size' in column:
                                 column_dict['data_size'] = column['data_size']
+                            if 'array_size' in column:
+                                column_dict['array_size'] = column['array_size']
                             if 'is_primary' in column:
                                 column_dict['is_primary'] = column['is_primary']
                             if 'is_relation' in column:
