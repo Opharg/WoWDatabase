@@ -3,6 +3,7 @@ import json
 from urllib.request import urlopen
 import os
 import shutil
+import subprocess
 import sys
 import logging
 
@@ -84,6 +85,19 @@ if __name__ == '__main__':
 
     definitions = dbdefs.read_definitions_folder('./WoWDBDefs/definitions')
     definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', '10.2.0.51239')
+    definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.b)
+
+    # mysql_connection.create_database(args.b)
+    clip_sql = mysql_connection.build_tables(definitions_build, args.b)
+
+    console = r'C:\Users\jonat\AppData\Roaming\JetBrains\PyCharm2023.2\consoles\db\96ba32e2-fa24-4b70-b8aa-29af7cff6ec2\console.sql'
+    if os.path.isfile(console):
+        with open(console, "w") as f:
+            f.writelines(clip_sql)
+        print(f"Query added to console {console}")
+    else:
+        subprocess.run("clip", text=True, input=clip_sql)
+        print("Invalid console set, or does not exist. Added sql query to clip, paste into your console of choice")
 
     # write definition to .json files
     with open("definitions.json", "w") as f:
