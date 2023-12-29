@@ -1,7 +1,7 @@
 import os
 import re
 from cachier import cachier
-
+import parser_logger
 
 # parses a given .dbd from path and returns a dict with
 #
