@@ -3,20 +3,34 @@ import json
 import os
 import shutil
 import sys
+import logging
 
 import git
 
 import dbdefs
+import parser_logger
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gitpull", help="Run program and pull changes from GitHub. Deletes cache", action="store_true")
-    parser.add_argument("--overwritecache", help="overwrite cache", action="store_true")
+    debug = parser.add_mutually_exclusive_group()
+    debug.add_argument('--debug', help='set logging to debug', action='store_true')
+    debug.add_argument('--cdebug', help='set logging to debug and show debug messages in console', action='store_true')
+    parser.add_argument('-b', type=str, help='set build number', required=True)
     args = parser.parse_args()
 
-    overwrite_cache = args.overwritecache
+    # logging
+    log_level = logging.INFO
+    if args.debug or args.cdebug:
+        log_level = logging.DEBUG
+    tempFile = open("app.log", "w").close
+    logger = parser_logger.set_logger(__name__)
+    parser_logger.overwrite_setLevel(log_level)
+    if not args.cdebug:
+        parser_logger.remove_debug_stream_handler()
+    logger.info("started logging")
+    logger.debug("debug logging enabled")
 
     # handling WoWDBDefs Repo
     if os.path.isdir('./WoWDBDefs'):

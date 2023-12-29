@@ -20,6 +20,11 @@ from cachier import cachier
 #           data_size: string (8,16,32,64, prefix 'u'), optional
 #           array_size: int, optional
 
+
+# setup logger
+logger = parser_logger.set_logger('mysql_connection')
+
+
 def read_definitions_folder(definitions_folder_path) -> dict:
     counter = 0
     files_amount = len(next(os.walk(definitions_folder_path))[2])
@@ -148,7 +153,7 @@ def read_definition_file(definition_file_path) -> dict:
 
 @cachier(cache_dir='./.cache', separate_files=True)
 def get_definitions_by_build(path, build):
-    print(f'getting definitions for build {build}')
+    logger.info(f'getting definitions for build {build}')
     definitions = read_definitions_folder(path)
     definitions_with_build = {}
 
@@ -202,6 +207,6 @@ def get_definitions_by_build(path, build):
 
 
         except Exception as e:
-            print(f'Exception "{e}" in {dbd}')
+            logger.critical(f'Exception "{e}" in {dbd}')
 
     return definitions_with_build
