@@ -40,7 +40,9 @@ if __name__ == '__main__':
     debug.add_argument('--debug', help='set logging to debug', action='store_true')
     debug.add_argument('--cdebug', help='set logging to debug and show debug messages in console', action='store_true')
     parser.add_argument('-b', type=str, help='set build number', required=True)
+    parser.add_argument("--pull", help="Run program and pull changes from GitHub. Deletes cache", action="store_true")
     parser.add_argument("--listfile", help="Update Listfile", action="store_true")
+    parser.add_argument("--clearcache", help="clear cache", action="store_true")
     args = parser.parse_args()
 
     # logging
@@ -58,12 +60,11 @@ if __name__ == '__main__':
     # handling WoWDBDefs Repo
     if os.path.isdir('./WoWDBDefs'):
         wowdbdefs = git.Git('./WoWDBDefs')
-        if args.gitpull:
+        if args.pull:
             print('Pulling git repositories...')
             print('WoWDBDefs: ' + wowdbdefs.pull())
             if os.path.isdir('./.cache'):
                 shutil.rmtree('./.cache')
-
     else:
         print('cloning WoWDBDefs...')
         wowdbdefs_repo = git.Repo.clone_from('https://github.com/wowdev/WoWDBDefs', 'WoWDBDefs')
@@ -83,8 +84,12 @@ if __name__ == '__main__':
         update_listfile()
         pass
 
+    if args.clearcache:
+        if os.path.isdir('./.cache'):
+            shutil.rmtree('./.cache')
+            print('Cache cleared')
+
     definitions = dbdefs.read_definitions_folder('./WoWDBDefs/definitions')
-    definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', '10.2.0.51239')
     definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.b)
 
     # mysql_connection.create_database(args.b)
