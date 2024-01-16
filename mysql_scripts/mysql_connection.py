@@ -68,28 +68,54 @@ def build_database(definitions_build, args):
     }
 
     # generate sql
-    tables_sql, column_count, table_count = generate_tables_sql(args.v, data_types, definitions_build)
-    foreign_key_sql, indices_sql, foreign_key_count = generate_foreign_key_sql(args.v, definitions_build)
+    tables_sql_list = generate_tables_sql(args.v, data_types, definitions_build)
+    foreign_key_sql_list, keys_sql_set_list = generate_foreign_key_sql(
+        args.v, definitions_build)
 
-    combined_no_data_sql = tables_sql + indices_sql + foreign_key_sql
-    combined_sql = tables_sql + indices_sql + foreign_key_sql
+    # combine sql for console
+    table_creation_sql_str = "\n".join(tables_sql_list)
+    indices_sql_str = "\n".join(tables_sql_list)
+    foreign_keys_sql_str = "\n".join(tables_sql_list)
+    combined_sql = table_creation_sql_str + indices_sql_str + foreign_keys_sql_str
 
     if not args.noexec:
-
         create_database(args.v)
+        connection, cursor, mysql_console = create_db_connection(database=args.v)
+        connection.autocommit = False
 
         # write tables
-        connection, cursor, mysql_console = create_db_connection(database=args.v)
-        cursor.execute(combined_no_data_sql)
-        cursor.close()
-        connection.close()
+        logger.info('Writing tables to database...')
+        query_count = len(tables_sql_list)
+        for idx, query in enumerate(tables_sql_list):
+            try:
+                cursor.execute(query)
+                progress_write('Tables created', idx + 1, query_count)
+            except mysql.connector.Error as e:
+                print(cursor.statement)
+                logger.critical(f"Error during table creation: {e}")
+                raise
 
-        # waiting until the Server has written all tables to disk, because .execute() is faster
-        # TODO: Figure out if changing these to lists makes waitout_write() irrelevant
-        logger.info(f'Writing {table_count} Tables with {column_count} columns to Disk')
-        waitout_write(args.v, table_count, 'PROC_GET_TABLE_COUNT_IN_SCHEMA', 'Tables')
-        logger.info(f'Writing {foreign_key_count} foreign keys to disk')
-        waitout_write(args.v, foreign_key_count, 'PROC_GET_FOREIGN_KEY_COUNT_IN_SCHEMA', 'Foreign Keys')
+        # write indices
+        logger.info('Writing indices to database...')
+        query_count = len(keys_sql_set_list)
+        for idx, query in enumerate(keys_sql_set_list):
+            try:
+                cursor.execute(query)
+                progress_write('Indices written', idx + 1, query_count)
+            except mysql.connector.Error as e:
+                print(cursor.statement)
+                logger.critical(f"Error during indices addition: {e}")
+
+        # write foreign keys
+        logger.info('Writing foreign keys to database...')
+        query_count = len(foreign_key_sql_list)
+        for idx, query in enumerate(foreign_key_sql_list):
+            try:
+                cursor.execute(query)
+                progress_write('Added Foreign Key constraints to tables', idx + 1, query_count)
+            except mysql.connector.Error as e:
+                print(cursor.statement)
+                logger.critical(f"Error during foreign keys addition: {e}")
 
         # LOAD DATA
         if args.cdata or args.data:
@@ -114,9 +140,16 @@ def build_database(definitions_build, args):
                 load_data_sql_list_length = len(load_data_sql_list)
                 logger.info(f'Writing data to {load_data_sql_list_length} tables')
                 for idx, e in enumerate(load_data_sql_list):
-                    out_string = f"{idx + 1}/{load_data_sql_list_length} - Writing data to {table_names_list[idx]}"
-                    stdout.write('\r' + out_string)
-                    cursor.execute(e)
+                    try:
+                        connection.start_transaction()
+                        progress_write(f'Writing data to {table_names_list[idx]}', idx + 1, load_data_sql_list_length)
+                        cursor.execute(e)
+                        connection.commit()
+                    except mysql.connector.Error as e:
+                        connection.rollback()
+                        print(cursor.statement)
+                        logger.critical(f"Error during data write: {e}")
+
                 print()
 
                 logger.info('Reenabling foreign_key_checks')
@@ -141,19 +174,17 @@ def build_database(definitions_build, args):
 def generate_tables_sql(build_id, data_types, definitions_build):
     # generates sql query for table creation
     logger.info(f'Creating tables for {build_id}')
-    tables_sql = f""
+    tables_sql_list = []
 
     #  manually add FileData
-    tables_sql += (f"CREATE TABLE IF NOT EXISTS `FileData` (\n"
-                   f"\t`ID` BIGINT PRIMARY KEY,\n"
-                   f"\t`Filename` TEXT,\n"
-                   f"\t`Filepath` TEXT\n);\n")
-    column_count = 0
-    table_count = 1
+    tables_sql_list.append(f"CREATE TABLE IF NOT EXISTS `FileData` (\n"
+                           f"\t`ID` BIGINT PRIMARY KEY,\n"
+                           f"\t`Filename` TEXT,\n"
+                           f"\t`Filepath` TEXT\n);\n")
+
     for table in definitions_build:
-        table_count += 1
         table_name = table
-        tables_sql += f'CREATE TABLE IF NOT EXISTS `{table_name}` (\n'
+        tables_sql_for_list = f'CREATE TABLE IF NOT EXISTS `{table_name}` (\n'
 
         for column in definitions_build[table]:
 
@@ -194,23 +225,20 @@ def generate_tables_sql(build_id, data_types, definitions_build):
             # combine column creation line
             if 'array_size' in column:
                 for idx in range(column['array_size']):
-                    tables_sql += f'\t`{column_name}[{idx}]`{data_type}{is_primary}{comment},\n'
-                    column_count += 1
+                    tables_sql_for_list += f'\t`{column_name}[{idx}]`{data_type}{is_primary}{comment},\n'
             else:
-                tables_sql += f'\t`{column_name}`{data_type}{is_primary}{comment},\n'
-                column_count += 1
+                tables_sql_for_list += f'\t`{column_name}`{data_type}{is_primary}{comment},\n'
 
-        tables_sql = tables_sql[:-2]
-        tables_sql += "\n);\n"
+        tables_sql_list.append(tables_sql_for_list[:-2] + ");")
 
-    return tables_sql, column_count, table_count
+    return tables_sql_list
 
 
 def generate_foreign_key_sql(build_id, definitions_build):
     # generates sql query to add foreign keys
     keys_sql_set = set()
-    foreign_key_count = 0
-    foreign_key_sql = f""
+    foreign_key_sql_list = []
+
     for table in definitions_build:
 
         table_name = table
@@ -234,18 +262,18 @@ def generate_foreign_key_sql(build_id, definitions_build):
             if table_name == foreign_table and column_name == foreign_column:
                 continue
 
+            # has relation
             if foreign_table in definitions_build or foreign_table == 'FileData':
-                if 'array_size' in column:
+                # constaint sql
+                if 'array_size' in column:  # handle arrays
                     for x in range(column['array_size']):
-                        foreign_key_count += 1
-                        # creating has due to 64 char limit and duplicate names with shortening
+                        # creating hash due to 64 char limit and duplicate names with shortening
                         fk_hash = hashlib.md5(
                             f"{table_name}_{column_name}[{x}]_{foreign_table}_{foreign_column}".encode()).hexdigest()
                         table_foreign_sql += (f"\tADD CONSTRAINT fk_{fk_hash}\n"
                                               f"\tFOREIGN KEY (`{column_name}[{x}]`) REFERENCES `{foreign_table}`(`{foreign_column}`),\n")
-                else:
-                    foreign_key_count += 1
-                    # creating has due to 64 char limit and duplicate names with shortening
+                else:  # handle single columns
+                    # creating hash due to 64 char limit and duplicate names with shortening
                     fk_hash = hashlib.md5(
                         f"{table_name}_{column_name}_{foreign_table}_{foreign_column}".encode()).hexdigest()
                     table_foreign_sql += (f"\tADD CONSTRAINT fk_{fk_hash}\n"
@@ -254,6 +282,7 @@ def generate_foreign_key_sql(build_id, definitions_build):
                 logger.debug(f"{table_name}::{column_name} has no relation in client data for this build")
                 break
 
+            # create additional indices
             try:
                 if foreign_table != 'FileData':  # comes from listfile, manually handled
                     for check_column in definitions_build[foreign_table]:
@@ -264,16 +293,17 @@ def generate_foreign_key_sql(build_id, definitions_build):
                 logger.debug(
                     f'{table_name}::{column_name} -> {foreign_table}::{foreign_column}, table does not exist in build {build_id}')
 
+        # skip
         if table_foreign_sql == f"ALTER TABLE `{table_name}`\n":
             continue
 
         table_foreign_sql = table_foreign_sql[:-2]
         table_foreign_sql += ";\n"
-        foreign_key_sql += table_foreign_sql
+        foreign_key_sql_list.append(table_foreign_sql)
 
-    keys_sql_set = ''.join(keys_sql_set)
+    keys_sql_set_list = keys_sql_set
 
-    return foreign_key_sql, keys_sql_set, foreign_key_count
+    return foreign_key_sql_list, keys_sql_set_list
 
 
 def generate_load_data_sql(build_id):
@@ -369,24 +399,8 @@ def generate_load_data_sql(build_id):
     return load_data_sql_list, table_names_list
 
 
-def waitout_write(build_id, total_count, procedure, object):
-    # wait until everything is written to disk
-    result = 0
-    connection, cursor, mysql_console = create_db_connection(database=build_id)
-
-    while result != total_count:
-        cursor.execute(f"CALL {procedure}('{build_id}', @object_count);")
-        cursor.execute("SELECT @object_count;")
-        result = cursor.fetchone()[0]
-        connection.commit()
-
-        out_string = f"{object} written: {result}/{total_count}"
-        stdout.write('\r' + out_string)
-
-        if result == total_count:
-            break
-        sleep(1)
-
-    print('')
-    cursor.close()
-    connection.close()
+def progress_write(text_str, curr_count, total_count):
+    out_string = f"{text_str}: {curr_count}/{total_count}"
+    stdout.write('\r' + out_string)
+    if curr_count == total_count:
+        print()
