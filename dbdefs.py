@@ -223,7 +223,6 @@ def get_definitions_by_build(path, build):
                         flag = True
                         break
 
-
         except Exception as e:
             logger.critical(f'Exception "{e}" in {dbd}')
 

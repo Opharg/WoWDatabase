@@ -2,8 +2,6 @@ import hashlib
 import os
 from sys import stdout
 from time import sleep
-from sqlalchemy import create_engine
-from sqlalchemy import text
 
 import mysql.connector
 from mysql_scripts import mysql_procedures
@@ -35,16 +33,6 @@ def create_db_connection(database=''):
     except mysql.connector.Error as err:
         logger.critical(f"Error: {err}")
         raise
-
-
-def create_db_engine(database=''):
-    host = os.environ['MYSQL_HOST']
-    user = os.environ['MYSQL_DB_USER']
-    password = os.environ['MYSQL_DB_USER_PASS']
-
-    engine = create_engine(f"mysql+mysqlconnector://{user}:{password}@{host}/{database}")
-
-    return engine
 
 
 def create_database(name):
@@ -80,50 +68,60 @@ def build_database(definitions_build, args):
     }
 
     # generate sql
-    tables_sql, column_count, table_count = generate_tables_sql(args.b, data_types, definitions_build)
-    foreign_key_sql, indices_sql, foreign_key_count = generate_foreign_key_sql(args.b, definitions_build)
+    tables_sql, column_count, table_count = generate_tables_sql(args.v, data_types, definitions_build)
+    foreign_key_sql, indices_sql, foreign_key_count = generate_foreign_key_sql(args.v, definitions_build)
 
     combined_no_data_sql = tables_sql + indices_sql + foreign_key_sql
-    combined_full_sql = '# You should never see this. combined_full_sql. Data inserts cannot be loaded, because it requires a database connection for parity checks'
-    load_data_sql = '# Data inserts cannot be loaded, because it needs a database connection for parity checks'
+    combined_sql = tables_sql + indices_sql + foreign_key_sql
 
     if not args.noexec:
-        create_database(args.b)
-        connection, cursor, mysql_console = create_db_connection(database=args.b)
 
+        create_database(args.v)
+
+        # write tables
+        connection, cursor, mysql_console = create_db_connection(database=args.v)
         cursor.execute(combined_no_data_sql)
-
         cursor.close()
         connection.close()
 
         # waiting until the Server has written all tables to disk, because .execute() is faster
         # TODO: Figure out if changing these to lists makes waitout_write() irrelevant
         logger.info(f'Writing {table_count} Tables with {column_count} columns to Disk')
-        waitout_write(args.b, table_count, 'PROC_GET_TABLE_COUNT_IN_SCHEMA', 'Tables')
+        waitout_write(args.v, table_count, 'PROC_GET_TABLE_COUNT_IN_SCHEMA', 'Tables')
         logger.info(f'Writing {foreign_key_count} foreign keys to disk')
-        waitout_write(args.b, foreign_key_count, 'PROC_GET_FOREIGN_KEY_COUNT_IN_SCHEMA', 'Foreign Keys')
+        waitout_write(args.v, foreign_key_count, 'PROC_GET_FOREIGN_KEY_COUNT_IN_SCHEMA', 'Foreign Keys')
+
+        # LOAD DATA
+        if args.cdata or args.data:
+            # get sql to load data from files
+            load_data_sql_list, table_names_list = generate_load_data_sql(args.v)
+            # append to full sql
+            load_data_sql = "".join(load_data_sql_list)
+            combined_sql += load_data_sql
 
         # write data. Needs everything to be written to disk for parity checks, thus separate execute
         if args.data:
-            load_data_sql, load_data_sql_list = generate_load_data_sql(args.b)
-            combined_full_sql = tables_sql + indices_sql + foreign_key_sql + load_data_sql
 
             try:
-                connection, cursor, mysql_console = create_db_connection(database=args.b)
+                # new connection, because "2014 (HY000): Commands out of sync; you can't run this command now"
+                connection, cursor, mysql_console = create_db_connection(database=args.v)
                 connection.autocommit = True
+
+                logger.info('Disabling foreign_key_checks')
                 cursor.execute('SET foreign_key_checks = 0')
-                #cursor.execute(load_data_sql)
-                #connection.commit()
 
+                # Write data to tables
                 load_data_sql_list_length = len(load_data_sql_list)
-
+                logger.info(f'Writing data to {load_data_sql_list_length} tables')
                 for idx, e in enumerate(load_data_sql_list):
-                    out_string = f"{idx+1}/{load_data_sql_list_length} - Writing Data to tables"
+                    out_string = f"{idx + 1}/{load_data_sql_list_length} - Writing data to {table_names_list[idx]}"
                     stdout.write('\r' + out_string)
                     cursor.execute(e)
                 print()
 
+                logger.info('Reenabling foreign_key_checks')
                 cursor.execute('SET foreign_key_checks = 1')
+
             except Exception as e:
                 logger.critical(f"Error: {e}")
                 raise
@@ -134,11 +132,10 @@ def build_database(definitions_build, args):
                 if connection:
                     connection.close()
 
-
         cursor.close()
         connection.close()
 
-    return combined_full_sql, combined_no_data_sql, load_data_sql
+    return combined_sql
 
 
 def generate_tables_sql(build_id, data_types, definitions_build):
@@ -280,9 +277,6 @@ def generate_foreign_key_sql(build_id, definitions_build):
 
 
 def generate_load_data_sql(build_id):
-    #import csv_loader
-    #frames = csv_loader.load_dir(build_id)
-
     # connection used for parity checks between database and data files in folder
     connection, cursor, mysql_console = create_db_connection(database=build_id)
 
@@ -291,14 +285,13 @@ def generate_load_data_sql(build_id):
     for table in cursor:
         tables_in_db.append(table[0])
     dataframe_names = []
-    #dataframe_names = [key for key, value in frames.items()]
     for file in os.listdir(f'./dbfilesclient/{build_id}'):
         if not file.endswith('.csv'):
             logger.warning(f'non .csv file found in ./dbfilesclient/{build_id}: {file}')
             continue
         dataframe_names.append(os.path.splitext(file)[0])
 
-    # compare lists to find unique items
+    # parity  checks: compare db and folder
     db_set = set(tables_in_db)
     folder_set = set(dataframe_names)
     symmectic_diff_set = db_set ^ folder_set
@@ -317,47 +310,13 @@ def generate_load_data_sql(build_id):
     if len(error_list) > 0:
         raise Exception(
             f"At least one file in ./dbfilesclient/{build_id} has no corresponding table in the database. Check app.log")
-    #engine = create_db_engine(build_id)
-    # Disable foreign key checks
-    #cursor.execute('SET foreign_key_checks = 0')
-    #logger.info('Foreign key checks disabled')
-    # with engine.connect() as connection:
-    #    connection.execute(text('SET foreign_key_checks = 0'))
 
-    #frames_count = len(frames)
-    #insert_sql = ''
-    #for idx, df in enumerate(frames):
-#
-    #    out_string = f"{idx+1}/{frames_count} - Loading: {df}"
-    #    stdout.write('\r' + out_string)
-    #    # frames[df].to_sql(con=engine, name=dataframe_names[idx], if_exists='append', index=False, method='multi')
-#
-    #    csv_path = os.getcwd() + f"\\tmp\\{df}.csv"
-    #    csv_path = csv_path.replace('\\', '\\\\')
-    #    frames[df].to_csv(csv_path, index=False, sep=',', quotechar='"', na_rep=r'')
-    #    rq = """LOAD DATA LOCAL INFILE '{file_path}' REPLACE INTO TABLE `{db}`.`{db_table}`
-    #            FIELDS TERMINATED BY ','
-    #            OPTIONALLY ENCLOSED BY '"'
-    #            ESCAPED BY ''
-    #            LINES TERMINATED BY '\\r\\n'
-    #            IGNORE 1 LINES
-    #             ({col});
-    #            """.format(db=build_id,
-    #                       file_path=csv_path,
-    #                       db_table=df,
-    #                       col='`'+"`,`".join(frames[df].columns.tolist())+'`')
-    #    insert_sql += rq
-    #    cursor.execute(rq)
-    #    connection.commit()
-#
-    #cursor.execute('SET foreign_key_checks = 1')
-    #logger.info('Foreign key checks enabled')
-    #print()
-
-
-    load_data_sql = ''
+    # create data loading sql
     load_data_sql_list = []
+    table_names_list = []
+
     # hardcode listfile
+    table_names_list.append('filedata')
     listfile_path = os.getcwd() + f"\community-listfile-reformatted.csv"
     listfile_path_slash = listfile_path.replace('\\', '\\\\')
     load_data_sql_list.append(f"""LOAD DATA LOCAL INFILE '{listfile_path_slash}'
@@ -372,20 +331,21 @@ def generate_load_data_sql(build_id):
         element_path = os.getcwd() + f"\dbfilesclient\\{build_id}\{element}.csv"
         element_path_slash = element_path.replace('\\', '\\\\')
 
+        # get column names
         with open(element_path, 'r', encoding='utf-8') as file:
             column_names_file = file.readline().strip()
             column_names_file = column_names_file.split(',')
             column_names_file = tuple(column_names_file)
 
-        # check parity between data and database
+        # check column parity between data and database
         cursor.execute(f"SELECT * FROM `{element}` LIMIT 0")
         if not column_names_file == cursor.column_names:
             logger.critical(f'{element} seems to have different columns between the database and data')
             raise Exception(f"{element} seems to have different columns between the database and data")
 
-        cursor.reset()
+        table_names_list.append(element)
 
-        # rebuild tuple with ``
+        # convert tuple to str, formatted with `` for MySQL
         columns_str = '('
         for column in column_names_file:
             column = column.replace("'", "`")
@@ -393,6 +353,7 @@ def generate_load_data_sql(build_id):
         columns_str = columns_str[:-1]
         columns_str += ')'
 
+        # MySQL query
         load_data_sql_list.append(f"""LOAD DATA LOCAL INFILE '{element_path_slash}'
         REPLACE INTO TABLE `{build_id}`.`{element}`
         FIELDS TERMINATED BY ','
@@ -401,8 +362,11 @@ def generate_load_data_sql(build_id):
         LINES TERMINATED BY '\\r\\n'
         IGNORE 1 LINES
         {columns_str};\n""")
+    else:
+        cursor.close()
+        connection.close()
 
-    return load_data_sql, load_data_sql_list
+    return load_data_sql_list, table_names_list
 
 
 def waitout_write(build_id, total_count, procedure, object):

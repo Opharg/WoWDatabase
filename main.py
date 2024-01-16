@@ -76,25 +76,22 @@ if __name__ == '__main__':
 
     # argparse
     parser = argparse.ArgumentParser()
-    debug_group = parser.add_mutually_exclusive_group()
-    debug_group.add_argument('--debug', help='set logging to debug', action='store_true')
-    debug_group.add_argument('--cdebug', help='set logging to debug and show debug messages in console',
-                             action='store_true')
-    console_group = parser.add_mutually_exclusive_group()
-    console_group.add_argument("--consolefull", help="Adds complete SQL to console or clip", action="store_true")
-    console_group.add_argument("--consoledata", help="Adds just the data load SQL to console or clip", action="store_true")
-    console_group.add_argument("--consolenodata", help="Adds table creation, indices, and foreign key SQL to console "
-                                                       "or clip", action="store_true")
+    parser.add_argument('-v', '-VERSION', type=str, help='set version', required=True)
+    parser.add_argument('--c', '--CONSOLE', help="Adds SQL query to console or clip", action="store_true")
     exec_group = parser.add_mutually_exclusive_group()
-    exec_group.add_argument("--noexec", help="only add sql to the console/clip, no automated execution, no connection to the database",
-                               action="store_true")
-    parser.add_argument('-b', type=str, help='set build number', required=True)
+    exec_group.add_argument("--noexec",
+                            help="only add sql to the console/clip, no db connection", action="store_true")
+    exec_group.add_argument("--data", help="Data -> database", action="store_true")
+    exec_group.add_argument("--cdata", help="Data SQL -> console", action="store_true")
+    debug_group = parser.add_mutually_exclusive_group()
+    debug_group.add_argument('--debug', help='enable debug logging', action='store_true')
+    debug_group.add_argument('--cdebug', help='enable debug logging & print to console', action='store_true')
+
     parser.add_argument("--pull", help="Pull WoWDBDefs changes. Deletes cache", action="store_true")
-    exec_group.add_argument("--data", help="Also adds data to the database, otherwise just in console", action="store_true")
     parser.add_argument("--listfile", help="Update Listfile", action="store_true")
     parser.add_argument("--clearcache", help="clear cache", action="store_true")
-    parser.add_argument("--fulldefs", help="output the entire definitions to .json", action="store_true")
-    parser.add_argument("--builddefs", help="output the builds definitions to .json", action="store_true")
+    parser.add_argument("--fulldefs", help="output all definitions to .json", action="store_true")
+    parser.add_argument("--vdefs", help="output definitions of this version to .json", action="store_true")
     args = parser.parse_args()
 
     # logging
@@ -145,18 +142,13 @@ if __name__ == '__main__':
             shutil.rmtree('./.cache')
             logger.info('Cache cleared')
 
-    definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.b)
-
-    combined_full_sql, combined_no_data_sql, load_data_sql = mysql_connection.build_database(definitions_build, args)
-
+    # actually do the stuff
+    definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.v)
+    combined_mysql = mysql_connection.build_database(definitions_build, args)
 
     # send to console
-    if args.consolefull:
-        send_to_console(combined_no_data_sql + load_data_sql)
-    if args.consoledata:
-        send_to_console(load_data_sql)
-    if args.consolenodata:
-        send_to_console(combined_no_data_sql)
+    if args.c or args.cdata:
+        send_to_console(combined_mysql)
 
     # write definitions to .json files
     if args.fulldefs:
@@ -164,7 +156,7 @@ if __name__ == '__main__':
         with open("definitions.json", "w") as file:
             logger.info(f'writing definitions to definitions.json')
             file.writelines(json.dumps(definitions, indent=2))
-    if args.builddefs:
+    if args.vdefs:
         with open("definitions_build.json", "w") as file:
             logger.info(f'writing definitions to definitions_build.json')
             file.writelines(json.dumps(definitions_build, indent=2))
