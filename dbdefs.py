@@ -22,7 +22,7 @@ import parser_logger
 
 
 # setup logger
-logger = parser_logger.set_logger('mysql_connection')
+logger = parser_logger.set_logger('dbdefs')
 
 
 def read_definitions_folder(definitions_folder_path) -> dict:
@@ -103,7 +103,7 @@ def read_definition_file(definition_file_path) -> dict:
             for line in block:
                 if line.startswith('LAYOUT'):
                     layouts_list = line.replace(',', '').split(' ')[1:]
-                elif line.startswith('BUILD'):  # TODO: handle build ranges e.g. '3.0.1.8303-3.0.1.8471'
+                elif line.startswith('BUILD'):
                     builds_list += line.replace(',', '').split(' ')[1:]
                 elif line.startswith('COMMENT'):
                     continue
@@ -114,7 +114,10 @@ def read_definition_file(definition_file_path) -> dict:
 
                     column = {}
 
-                    column['name'] = re.sub(array_size_pattern, '', line.split('<')[0].split('$')[-1])
+                    column['name'] = re.sub(array_size_pattern, '',
+                                            line.split('<')[0]
+                                            .split('$')[-1]
+                                            .split(' //')[0])  # comment
 
                     data_size = re.search(data_size_pattern, line)
                     array_size = re.search(array_size_pattern, line)
@@ -168,8 +171,8 @@ def read_definition_file(definition_file_path) -> dict:
 #   }
 #
 @cachier(cache_dir='./.cache', separate_files=True)
-def get_definitions_by_build(path, build):
-    logger.info(f'getting definitions for build {build}')
+def get_definitions_by_build(path, target_version):
+    logger.info(f'getting definitions for build {target_version}')
     definitions = read_definitions_folder(path)
     definitions_with_build = {}
 
@@ -186,39 +189,24 @@ def get_definitions_by_build(path, build):
                     flag = False
                     break
 
-                for build_id in block['build']:
-                    if build_id == build:  # select block that has a particular build
+                for def_build in block['build']:
+                    # check ranges
+                    if '-' in def_build:
+                        builds_range = def_build.split('-')
+                        builds_range = [int(e.split('.')[-1]) for e in builds_range]
+                        version_build_id = int(target_version.split('.')[-1])
 
-                        columns = []
+                        if builds_range[0] <= version_build_id <= builds_range[1]:
+                            logger.debug(f'Getting definitions from range: {def_build} in {dbd}')
+                            columns = create_columns(block, dbd, definitions)
+                            definitions_with_build[dbd] = columns
+                            flag = True
+                            break
 
-                        for column in block['columns']:
-                            column_dict = {}
-                            if 'name' in column:
-                                column_dict['name'] = column['name']
-                            if 'data_size' in column:
-                                column_dict['data_size'] = column['data_size']
-                            if 'array_size' in column:
-                                column_dict['array_size'] = column['array_size']
-                            if 'is_primary' in column:
-                                column_dict['is_primary'] = column['is_primary']
-                            if 'is_relation' in column:
-                                column_dict['is_relation'] = column['is_relation']
+                    if def_build == target_version:  # select block that has a particular build
+                        logger.debug(f'Getting definitions from exact: {def_build} in {dbd}')
 
-                            if 'data_type' in definitions[dbd]['columns'][column['name']]:
-                                column_dict['data_type'] = definitions[dbd]['columns'][column['name']]['data_type']
-                            if 'foreign_table' in definitions[dbd]['columns'][column['name']]:
-                                column_dict['foreign_table'] = definitions[dbd]['columns'][column['name']][
-                                    'foreign_table']
-                            if 'foreign_column' in definitions[dbd]['columns'][column['name']]:
-                                column_dict['foreign_column'] = definitions[dbd]['columns'][column['name']][
-                                    'foreign_column']
-                            if 'verified' in definitions[dbd]['columns'][column['name']]:
-                                column_dict['verified'] = definitions[dbd]['columns'][column['name']]['verified']
-                            if 'comment' in definitions[dbd]['columns'][column['name']]:
-                                column_dict['comment'] = definitions[dbd]['columns'][column['name']]['comment']
-
-                            columns.append(column_dict)
-
+                        columns = create_columns(block, dbd, definitions)
                         definitions_with_build[dbd] = columns
                         flag = True
                         break
@@ -227,3 +215,45 @@ def get_definitions_by_build(path, build):
             logger.critical(f'Exception "{e}" in {dbd}')
 
     return definitions_with_build
+
+
+def create_columns(block, dbd, definitions):
+    columns = []
+    for column in block['columns']:
+        column_dict = {}
+        # Get info from the BUILD/LAYOUT block in WoWDBDefs
+        if 'name' in column:
+            column_dict['name'] = column['name']
+        if 'data_size' in column:
+            column_dict['data_size'] = column['data_size']
+        if 'array_size' in column:
+            column_dict['array_size'] = column['array_size']
+        if 'is_primary' in column:
+            column_dict['is_primary'] = column['is_primary']
+        if 'is_relation' in column:
+            column_dict['is_relation'] = column['is_relation']
+        if 'comment' in column:
+            column_dict['comment'] = column['comment']
+
+        # get info from the COLUMNS block in WoWDBDefs
+        if 'data_type' in definitions[dbd]['columns'][column['name']]:
+            column_dict['data_type'] = definitions[dbd]['columns'][column['name']]['data_type']
+        if 'foreign_table' in definitions[dbd]['columns'][column['name']]:
+            column_dict['foreign_table'] = definitions[dbd]['columns'][column['name']][
+                'foreign_table']
+        if 'foreign_column' in definitions[dbd]['columns'][column['name']]:
+            column_dict['foreign_column'] = definitions[dbd]['columns'][column['name']][
+                'foreign_column']
+        if 'verified' in definitions[dbd]['columns'][column['name']]:
+            column_dict['verified'] = definitions[dbd]['columns'][column['name']]['verified']
+        if 'comment' in definitions[dbd]['columns'][column['name']]:
+            if 'comment' in column_dict:
+                logger.warning(f'There is a comment both in the "COLUMNS" and "LAYOUT/BUILD" for {definitions[dbd]}::column[\'name\']. Supporting both has not been tested, '
+                               f'please export definitions_build.json by adding --vdefs to the execution arguments '
+                               f'and report if the comment has been properly concatenated.')
+                column_dict['comment'] = f"COLUMNS: {definitions[dbd]['columns'][column['name']]['comment']}; BUILD: {column_dict['comment']}"
+
+            column_dict['comment'] = definitions[dbd]['columns'][column['name']]['comment']
+
+        columns.append(column_dict)
+    return columns
