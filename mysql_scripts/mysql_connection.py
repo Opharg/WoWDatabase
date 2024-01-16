@@ -357,6 +357,16 @@ def generate_load_data_sql(build_id):
 
     load_data_sql = ''
     load_data_sql_list = []
+    # hardcode listfile
+    listfile_path = os.getcwd() + f"\community-listfile-reformatted.csv"
+    listfile_path_slash = listfile_path.replace('\\', '\\\\')
+    load_data_sql_list.append(f"""LOAD DATA LOCAL INFILE '{listfile_path_slash}'
+        REPLACE INTO TABLE `{build_id}`.`filedata`
+        FIELDS TERMINATED BY ','
+        OPTIONALLY ENCLOSED BY '"'
+        LINES TERMINATED BY '\\r\\n'
+        IGNORE 1 LINES
+        (`ID`,`Filename`,`Filepath`);\n""")
 
     for element in intersection_set:
         element_path = os.getcwd() + f"\dbfilesclient\\{build_id}\{element}.csv"

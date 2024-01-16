@@ -33,6 +33,21 @@ def update_listfile():
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
+    logger.info('Reformatting listfile...')
+    with open(r'./community-listfile.csv') as listfile:
+        lines = listfile.readlines()
+    new_lines = ['ID,Filename,Filepath\n']
+    for line in lines:
+        line = line.strip()
+        fdid = line.split(';')[0]
+        filename = line.split('/')[-1].split('.')[0]
+        filepath = line.split(';')[1]
+
+        new_lines.append(f'{fdid},"{filename}","{filepath}"\n')
+
+    with open(r'./community-listfile-reformatted.csv', 'w') as listfile:
+        listfile.writelines(new_lines)
+
 
 def send_to_console(string):
     console = os.environ['MYSQL_CONSOLE']
@@ -108,6 +123,7 @@ if __name__ == '__main__':
         logger.warning('imported WoWDBDefs. Rerun program')
         sys.exit(0)
 
+
     # listfile
     if not os.path.isfile('./community-listfile.csv'):
         logger.info('Downloading community-listfile')
@@ -115,9 +131,11 @@ if __name__ == '__main__':
     else:
         logger.info('community-listfile found')
     if args.listfile:
-        logger.info('Updating community-listfile')
         logger.info('Renaming community-listfile.csv -> community-listfile.csv.old')
+        if os.path.isfile('./community-listfile.csv.old'):
+            os.remove('./community-listfile.csv.old')
         os.rename('./community-listfile.csv', './community-listfile.csv.old')
+        logger.info('Updating community-listfile')
         update_listfile()
         pass
 
