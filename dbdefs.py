@@ -31,7 +31,7 @@ def read_definitions_folder(definitions_folder_path) -> dict:
     definitions = {}
     for file in os.listdir(definitions_folder_path):
         # print progress counter
-        counter += 1
+        # counter += 1
         # print(f"{counter}/{files_amount}\t\t\t{file}")
         definitions[str(file.split('.')[0])] = read_definition_file(f'{definitions_folder_path}/{file}')
 
@@ -151,6 +151,22 @@ def read_definition_file(definition_file_path) -> dict:
     return definition_dict
 
 
+# parses a given .dbd from path and returns a dict for a specific build with
+#   {
+#   dbd_name:[ name of the dbd, array of columns
+#       {
+#           "name": string
+#           "data_type": string
+#           "data_size": string (8,16,32,64, prefix 'u'), optional
+#           "array_size": int
+#           "foreign_table": string, optional
+#           "foreign_column": string, optional
+#           "verified": bool
+#           "comment": string
+#       }
+#   ]
+#   }
+#
 @cachier(cache_dir='./.cache', separate_files=True)
 def get_definitions_by_build(path, build):
     logger.info(f'getting definitions for build {build}')
