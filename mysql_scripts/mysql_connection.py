@@ -77,7 +77,15 @@ def build_database(definitions_build, args):
     foreign_keys_sql_str = "".join(foreign_key_sql_list)
     combined_sql = table_creation_sql_str + indices_sql_str + foreign_keys_sql_str
 
-    if not args.noexec:
+    # LOAD DATA
+    if args.cdata or args.data:
+        # get sql to load data from files
+        load_data_sql_list, table_names_list = generate_load_data_sql(args.v)
+        # append to full sql
+        load_data_sql = "".join(load_data_sql_list)
+        combined_sql += load_data_sql
+
+    if not args.noexec and not args.cdata:
         create_database(args.v)
         connection, cursor, mysql_console = create_db_connection(database=args.v)
         connection.autocommit = False
@@ -119,13 +127,6 @@ def build_database(definitions_build, args):
                     print(cursor.statement)
                     logger.critical(f"Error during foreign keys addition: {e}")
 
-        # LOAD DATA
-        if args.cdata or args.data:
-            # get sql to load data from files
-            load_data_sql_list, table_names_list = generate_load_data_sql(args.v)
-            # append to full sql
-            load_data_sql = "".join(load_data_sql_list)
-            combined_sql += load_data_sql
 
         # write data. Needs everything to be written to disk for parity checks, thus separate execute
         if args.data:
@@ -182,7 +183,7 @@ def generate_tables_sql(build_id, data_types, definitions_build):
     tables_sql_list.append(f"CREATE TABLE IF NOT EXISTS `FileData` (\n"
                            f"\t`ID` BIGINT PRIMARY KEY,\n"
                            f"\t`Filename` TEXT,\n"
-                           f"\t`Filepath` TEXT\n);\n")
+                           f"\t`Filepath` TEXT);\n")
 
     for table in definitions_build:
         table_name = table
@@ -231,7 +232,7 @@ def generate_tables_sql(build_id, data_types, definitions_build):
             else:
                 tables_sql_for_list += f'\t`{column_name}`{data_type}{is_primary}{comment},\n'
 
-        tables_sql_list.append(tables_sql_for_list[:-2] + ");")
+        tables_sql_list.append(tables_sql_for_list[:-2] + ");\n")
 
     return tables_sql_list
 

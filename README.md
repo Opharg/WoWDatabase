@@ -38,21 +38,23 @@ MySQL: ensure that `local_infile = 1` is set on your console and your sql consol
 | -h, --help   | Show this help message and exit.                                           |
 | -v           | REQUIRED, WoW version e.g. `-v 10.2.5.52902`                               |
 | -db          | REQUIRED, database type e.g. `-db mysql`                                   |
-| --c          | Write return query to your sql console, or clip if no console is set/found |
-#### execute (numbered items mutually exclusive)
-|          |                                                                                        |
-|----------|----------------------------------------------------------------------------------------|
-| --noexec | 1: don't write to the database, table creation query                                   |
-| --cdata  | 2: write tables to the database; add data loading sql to return query                  |
-| --data   | 3: write tables to the database and load data; adds full sql to return query           |
-| --nokeys | skip writing foreign keys to the database. Still adds the query to the console output. |
-#### debug (numbered items mutually exclusive)
-|              |                                                         |
-|--------------|---------------------------------------------------------|
-| --debug      | 1: enable debug logging                                 |
-| --cdebug     | 2: enable debug logging & write log to console          |
-| --vdefs      | output definitions dict of the current version as .json |
-| --fulldefs   | output full definitions dict as .json                   |
+#### execute (numbered items are mutually exclusive)
+|          |                                                                                                                                                       |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+|          | 0: no argument; Write tables and foreign keys to the database. Return table creation and foreign key queries for console output                                                                                       |
+| --noexec | 1: Don't write to the database. Return table creation and foreign key queries for console output                                                      |
+| --cdata  | 2: **requires tables to be already written to a database.** Don't write to the database. Return table creation, foreign key, and data loading queries |
+| --data   | 3: Write tables and foreign keys, load data into database; Return full query for console output                                                       |
+|          |                                                                                                                                                       |
+| --nokeys | skip writing foreign keys to the database. Return full query for console output. (required if foreign keys are already written from a prior run)      |
+#### debug (numbered items are mutually exclusive)
+|            |                                                         |
+|------------|---------------------------------------------------------|
+| --debug    | 1: enable debug logging                                 |
+| --cdebug   | 2: enable debug logging & write log to console          |
+|            |                                                         |
+| --vdefs    | output definitions dict of the current version as .json |
+| --fulldefs | output full definitions dict as .json                   |
 #### miscellaneous
 |              |                    |
 |--------------|--------------------|

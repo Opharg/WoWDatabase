@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
 
     # send to console
-    if args.c or args.cdata:
+    if args.c:
         send_to_console(combined_query)
 
     # write definitions to .json files
