@@ -45,3 +45,4 @@ MySQL: ensure that `local_infile = 1`
 | --clearcache | delete cache                                                        |
 | --fulldefs   | output full definitions to .json                                    |
 | --vdefs      | output definitions of the current version to .json                  |
+| -db          | REQUIRED, database type e.g. `-db mysql`                                   |

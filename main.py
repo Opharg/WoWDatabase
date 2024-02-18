@@ -76,8 +76,10 @@ if __name__ == '__main__':
 
     # argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '-VERSION', type=str, help='set version', required=True)
-    parser.add_argument('--c', '--CONSOLE', help="Adds SQL query to console or clip", action="store_true")
+    parser.add_argument('-v', type=str, help='set version', required=True)
+    parser.add_argument('-db', type=str, help='set version', required=True)
+    parser.add_argument('--c', help="Adds SQL query to console or clip", action="store_true")
+
     exec_group = parser.add_mutually_exclusive_group()
     exec_group.add_argument("--noexec",
                             help="only add sql to the console/clip, no db connection", action="store_true")
@@ -143,12 +145,18 @@ if __name__ == '__main__':
             logger.info('Cache cleared')
 
     # actually do the stuff
-    definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.v)
-    combined_mysql = mysql_connection.build_database(definitions_build, args)
+    match args.db:
+        case 'mysql':
+            definitions_build = dbdefs.get_definitions_by_build('./WoWDBDefs/definitions', args.v)
+            combined_query = mysql_connection.build_database(definitions_build, args)
+        case _:
+            logger.critical(f'{args.db} is not a supported database type')
+            end_program(1)
+
 
     # send to console
     if args.c or args.cdata:
-        send_to_console(combined_mysql)
+        send_to_console(combined_query)
 
     # write definitions to .json files
     if args.fulldefs:

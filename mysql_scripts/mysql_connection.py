@@ -14,9 +14,9 @@ logger = parser_logger.set_logger('mysql_connection')
 def create_db_connection(database=''):
     # Configuration for MySQL connection
     db_config = {
-        "host": os.environ['MYSQL_HOST'],
-        "user": os.environ['MYSQL_DB_USER'],
-        "password": os.environ['MYSQL_DB_USER_PASS'],
+        "host": os.environ['DB_HOST'],
+        "user": os.environ['DB_USER'],
+        "password": os.environ['DB_USER_PASS'],
         "allow_local_infile": True
     }
     try:
@@ -26,7 +26,7 @@ def create_db_connection(database=''):
         if database != '':
             cursor.execute(f"USE `{database}`")
 
-        mysql_console = os.environ['MYSQL_CONSOLE']
+        mysql_console = os.environ['DB_CONSOLE']
 
         return connection, cursor, mysql_console
 
@@ -107,15 +107,18 @@ def build_database(definitions_build, args):
                 logger.critical(f"Error during indices addition: {e}")
 
         # write foreign keys
-        logger.info('Writing foreign keys to database...')
-        query_count = len(foreign_key_sql_list)
-        for idx, query in enumerate(foreign_key_sql_list):
-            try:
-                cursor.execute(query)
-                progress_write('Added Foreign Key constraints to tables', idx + 1, query_count)
-            except mysql.connector.Error as e:
-                print(cursor.statement)
-                logger.critical(f"Error during foreign keys addition: {e}")
+        if args.nokeys:
+            logger.info('Skipping foreign keys...')
+        else:
+            logger.info('Writing foreign keys to database...')
+            query_count = len(foreign_key_sql_list)
+            for idx, query in enumerate(foreign_key_sql_list):
+                try:
+                    cursor.execute(query)
+                    progress_write('Added Foreign Key constraints to tables', idx + 1, query_count)
+                except mysql.connector.Error as e:
+                    print(cursor.statement)
+                    logger.critical(f"Error during foreign keys addition: {e}")
 
         # LOAD DATA
         if args.cdata or args.data:
