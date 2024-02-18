@@ -50,7 +50,7 @@ def update_listfile():
 
 
 def send_to_console(string):
-    console = os.environ['MYSQL_CONSOLE']
+    console = os.environ['DB_CONSOLE']
     if os.path.isfile(console):
         with open(console, "w") as f:
             f.writelines(string)
@@ -81,19 +81,20 @@ if __name__ == '__main__':
     parser.add_argument('--c', help="Adds SQL query to console or clip", action="store_true")
 
     exec_group = parser.add_mutually_exclusive_group()
-    exec_group.add_argument("--noexec",
-                            help="only add sql to the console/clip, no db connection", action="store_true")
+    exec_group.add_argument("--noexec", help="only add sql to the console/clip, no db connection", action="store_true")
     exec_group.add_argument("--data", help="Data -> database", action="store_true")
     exec_group.add_argument("--cdata", help="Data SQL -> console", action="store_true")
+    parser.add_argument("--nokeys", help="skip writing foreign keys to the database", action="store_true")
+
     debug_group = parser.add_mutually_exclusive_group()
     debug_group.add_argument('--debug', help='enable debug logging', action='store_true')
     debug_group.add_argument('--cdebug', help='enable debug logging & print to console', action='store_true')
 
-    parser.add_argument("--pull", help="Pull WoWDBDefs changes. Deletes cache", action="store_true")
+    parser.add_argument("--vdefs", help="output definitions of this version to .json", action="store_true")
+    parser.add_argument("--fulldefs", help="output all definitions to .json", action="store_true")
+    parser.add_argument("--dbdefspull", help="Pull WoWDBDefs changes. Deletes cache", action="store_true")
     parser.add_argument("--listfile", help="Update Listfile", action="store_true")
     parser.add_argument("--clearcache", help="clear cache", action="store_true")
-    parser.add_argument("--fulldefs", help="output all definitions to .json", action="store_true")
-    parser.add_argument("--vdefs", help="output definitions of this version to .json", action="store_true")
     args = parser.parse_args()
 
     # logging
@@ -110,7 +111,7 @@ if __name__ == '__main__':
     # handle WoWDBDefs Repo
     if os.path.isdir('./WoWDBDefs'):
         wowdbdefs = git.Git('./WoWDBDefs')
-        if args.pull:
+        if args.dbdefspull:
             logger.info('Pulling git repositories...')
             logger.info('WoWDBDefs: ' + wowdbdefs.pull())
             if os.path.isdir('./.cache'):

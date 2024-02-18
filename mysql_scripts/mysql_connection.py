@@ -1,7 +1,6 @@
 import hashlib
 import os
 from sys import stdout
-from time import sleep
 
 import mysql.connector
 from mysql_scripts import mysql_procedures
@@ -155,7 +154,7 @@ def build_database(definitions_build, args):
 
                 print()
 
-                logger.info('Reenabling foreign_key_checks')
+                logger.info('Re-enabling foreign_key_checks')
                 cursor.execute('SET foreign_key_checks = 1')
 
             except Exception as e:
