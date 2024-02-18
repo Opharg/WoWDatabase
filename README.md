@@ -1,28 +1,28 @@
 # WoWDatabase
-Python tooling to create databases from World of Warcraft's client database files. Currently only supporting MySQL.
+Python tooling to create databases from World of Warcraft's client database files. Currently, only MySQL is supported.
 
 ## Disclaimer
 Don't expect higher quality than my-first-python-project. It works and speed is constrained by the database anyway.
 
 ## Limitations
-- The table `filedata` is hardcoded and will always be build from [wow-listfile](https://github.com/wowdev/wow-listfile).
-- A few builds seem to have files that aren't in WoWDBDefs. The program will tell you which are the offending ones and exit. They can be manually deleted from the folder, but no guarantees (tested with `10.0.7.49343`)
+- The `filedata` table is hardcoded and will always be build from [wow-listfile](https://github.com/wowdev/wow-listfile).
+- A few builds seem to contain files that are not found in WoWDBDefs for the respective version. The program will identify these files and exit. They can be manually removed from `./dbfilesclient/{VERSION}`, but there are no guarantees (tested with `10.0.7.49343`).
 - Foreign Key names are hashed due to length limitations and resulting naming conflicts. 
 
 ## Usage
-### Generating databases and tables
-Run `main.py` with the required `-v` and `-db` arguments and either set up the Environment Variables to connect to your database, 
+### Generating schemas and tables
+Run `main.py` with the required `-v` and `-db` arguments. Set up the Environment Variables to connect to your database, 
 or use `--c` to output to your defined database console file (or clipboard, if it's not set correctly).
 
 Schemas are named by their version.
 
-### Loading Data into tables
+### Loading data into tables
 Drop your dbfilesclient .csv files into `./dbfilesclient/{VERSION}` and run `main.py` with one of the data arguments.
 - extract with [wow.tools.local](https://github.com/Marlamin/wow.tools.local)
 - `dbc` files can be converted to `.csv` with [DBC2CSV](https://github.com/Marlamin/DBC2CSV)
-    - I've included a `user_dbc2csv.bat` to automate using the DBC2CSV and moving created files into the correct directory. Just Edit the User Variables in it to automate the conversion and moving files. 
+    - A `user_dbc2csv.bat` file is included to automate the conversion and moving files into the correct directory. Edit the User Variables in it to automate this process. 
   
-MySQL: ensure that `local_infile = 1` is set on your console and your sql console if applicable.
+MySQL: ensure that `local_infile = 1` is set for your database, and if applicable for your SQL console.
 ### Environment variables
 | Name         | Description                                              |
 |--------------|----------------------------------------------------------|
@@ -35,7 +35,6 @@ MySQL: ensure that `local_infile = 1` is set on your console and your sql consol
 #### required
 | Argument     | Description                                                                |
 |--------------|----------------------------------------------------------------------------|
-| -h, --help   | Show this help message and exit.                                           |
 | -v           | REQUIRED, WoW version e.g. `-v 10.2.5.52902`                               |
 | -db          | REQUIRED, database type e.g. `-db mysql`                                   |
 #### execute (numbered items are mutually exclusive)
@@ -56,8 +55,9 @@ MySQL: ensure that `local_infile = 1` is set on your console and your sql consol
 | --vdefs    | output definitions dict of the current version as .json |
 | --fulldefs | output full definitions dict as .json                   |
 #### miscellaneous
-|              |                    |
-|--------------|--------------------|
-| --dbdefspull | git-pull WoWDBDefs |
-| --listfile   | update listfile    |
-| --clearcache | delete cache       |
+|              |                                                                            |
+|--------------|----------------------------------------------------------------------------|
+| --c          | write return query to your sql console, or clip if no console is set/found |
+| --dbdefspull | git-pull WoWDBDefs                                                         |
+| --listfile   | update listfile                                                            |
+| --clearcache | delete cache                                                               |
