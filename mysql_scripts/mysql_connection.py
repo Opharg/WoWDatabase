@@ -72,9 +72,9 @@ def build_database(definitions_build, args):
         args.v, definitions_build)
 
     # combine sql for console
-    table_creation_sql_str = "\n".join(tables_sql_list)
-    indices_sql_str = "\n".join(tables_sql_list)
-    foreign_keys_sql_str = "\n".join(tables_sql_list)
+    table_creation_sql_str = "".join(tables_sql_list)
+    indices_sql_str = "".join(keys_sql_set_list)
+    foreign_keys_sql_str = "".join(foreign_key_sql_list)
     combined_sql = table_creation_sql_str + indices_sql_str + foreign_keys_sql_str
 
     if not args.noexec:
