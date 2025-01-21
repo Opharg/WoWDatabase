@@ -1,6 +1,6 @@
 procedures = [
     f"""DROP PROCEDURE IF EXISTS `PROC_SET_PRIMARY_ANDOR_INDEX`;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `PROC_SET_PRIMARY_ANDOR_INDEX`(IN p_tableName varchar(100), IN p_columnName varchar(100))
+CREATE PROCEDURE `PROC_SET_PRIMARY_ANDOR_INDEX`(IN p_tableName varchar(100), IN p_columnName varchar(100))
 BEGIN
     DECLARE primaryKeyCount INT;
 

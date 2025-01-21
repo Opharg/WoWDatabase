@@ -1,8 +1,16 @@
 # WoWDatabase
-Python tooling to create databases from World of Warcraft's client database files. Currently, only MySQL is supported.
+Python 3.11 tooling to create databases from World of Warcraft's client database files. Currently, only MySQL is supported.
 
 ## Disclaimer
-Don't expect higher code quality than my-first-python-project. It works and speed is constrained by the database anyway.
+This was purely a learning project and should probably not be used for real.
+
+Obvious fixes that would require refactoring would be:
+- execute arguments split up and work on 1st run
+- direct integration of DBC2CSV within python
+- WoWDBDefs should probably not be a submodule
+
+It works on my machine (at least on Windows, Linux needs paths fixed). 
+
 
 ## Limitations
 - The `filedata` table is hardcoded and will always be build from [wow-listfile](https://github.com/wowdev/wow-listfile).
@@ -38,6 +46,8 @@ MySQL: ensure that `local_infile = 1` is set for your database, and if applicabl
 | -v           | REQUIRED, WoW version e.g. `-v 10.2.5.52902`                               |
 | -db          | REQUIRED, database type e.g. `-db mysql`                                   |
 #### execute (numbered items are mutually exclusive)
+**WARNING:** First run per version has to be without this argument.
+
 |          |                                                                                                                                                       |
 |----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 |          | 0: no argument; Write tables and foreign keys to the database. Return table creation and foreign key queries for console output                                                                                       |

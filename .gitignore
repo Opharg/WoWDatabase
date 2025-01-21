@@ -1,0 +1,14 @@
+.idea/
+.cache/
+
+!.dbfilesclient/drop_version_folders_here
+.dbfilesclient/*/
+
+
+.env
+app.log
+community-listfile.csv
+community-listfile.csv.old
+community-listfile-reformatted.csv
+definitions.json
+definitions_build.json

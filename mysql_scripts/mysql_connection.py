@@ -1,5 +1,6 @@
 import hashlib
 import os
+import sys
 from sys import stdout
 
 import mysql.connector
@@ -67,6 +68,7 @@ def build_database(definitions_build, args):
     }
 
     # generate sql
+
     tables_sql_list = generate_tables_sql(args.v, data_types, definitions_build)
     foreign_key_sql_list, keys_sql_set_list = generate_foreign_key_sql(
         args.v, definitions_build)
@@ -79,6 +81,7 @@ def build_database(definitions_build, args):
 
     # LOAD DATA
     if args.cdata or args.data:
+        create_database(args.v)
         # get sql to load data from files
         load_data_sql_list, table_names_list = generate_load_data_sql(args.v)
         # append to full sql
@@ -86,7 +89,6 @@ def build_database(definitions_build, args):
         combined_sql += load_data_sql
 
     if not args.noexec and not args.cdata:
-        create_database(args.v)
         connection, cursor, mysql_console = create_db_connection(database=args.v)
         connection.autocommit = False
 
@@ -126,7 +128,6 @@ def build_database(definitions_build, args):
                 except mysql.connector.Error as e:
                     print(cursor.statement)
                     logger.critical(f"Error during foreign keys addition: {e}")
-
 
         # write data. Needs everything to be written to disk for parity checks, thus separate execute
         if args.data:
@@ -323,6 +324,14 @@ def generate_load_data_sql(build_id):
             logger.warning(f'non .csv file found in ./dbfilesclient/{build_id}: {file}')
             continue
         dataframe_names.append(os.path.splitext(file)[0])
+
+    # get capitalization, if tables in db are capitalized (idk why this is the case now, used to be not the case)
+    lowered_tables_in_db = [x.lower() for x in tables_in_db]
+    for idx, file in enumerate(dataframe_names):
+        if file.lower() in lowered_tables_in_db:
+            dataframe_names[idx] = tables_in_db[lowered_tables_in_db.index(file.lower())]
+        else:
+            print(f"couldn't find capitalized {file} equivalent in database {build_id}")
 
     # parity  checks: compare db and folder
     db_set = set(tables_in_db)
